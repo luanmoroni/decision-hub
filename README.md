@@ -28,6 +28,12 @@ O Decision Hub organiza esses sinais em uma única leitura executiva e destaca a
 
 As recomendações são calculadas a partir dos indicadores e podem ser transformadas em planos de ação acompanháveis. O status dos projetos também é recalculado com base em margem, progresso, equipe e metas configuradas.
 
+Cada período salvo entra no seletor do cabeçalho. Projetos podem ser adicionados ou removidos na entrada de dados.
+
+## Persistência
+
+Os dados são armazenados no Cloudflare D1. Para uma instalação independente com login público e papéis de Administrador, Usuário e Leitor, a evolução recomendada é Supabase Auth + Postgres com políticas de acesso por empresa.
+
 O menu **Comercial** concentra funil, oportunidades e metas. **Projetos** aparece ao final da jornada, depois da leitura comercial e financeira.
 
 ## Stack
