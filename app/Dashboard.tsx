@@ -2,29 +2,49 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
-type View = "overview" | "commercial" | "projects" | "reports" | "settings";
+type View = "overview" | "commercial" | "projects" | "data" | "reports" | "settings";
+type Project = { id: string; name: string; client: string; progress: number; margin: number; team: number };
+type ActionPlan = { id: string; title: string; detail: string; done: boolean; createdAt: string };
 type DashboardData = {
-  company: string; period: string; revenue: number; previousRevenue: number; target: number;
-  margin: number; pipeline: number; utilization: number; activeProjects: number;
-  proposals: number; negotiations: number; closings: number;
+  company: string; owner: string; period: string; revenue: number; previousRevenue: number; target: number;
+  margin: number; pipeline: number; utilization: number; proposals: number; negotiations: number; closings: number;
+  marginTarget: number; utilizationTarget: number; currency: "BRL"; projects: Project[]; actions: ActionPlan[];
 };
 
-const defaults: DashboardData = {
-  company: "Lumina Consultoria", period: "Julho 2026", revenue: 284000, previousRevenue: 252600,
-  target: 310000, margin: 31.8, pipeline: 620000, utilization: 78, activeProjects: 12,
-  proposals: 18, negotiations: 9, closings: 4,
-};
-
-const projects = [
-  { name: "Projeto Atlas", client: "Northstar Health", progress: 64, margin: "24%", team: "8 pessoas", status: "Atenção", tone: "warn" },
-  { name: "Operação Prisma", client: "Vértice Capital", progress: 82, margin: "38%", team: "5 pessoas", status: "Saudável", tone: "good" },
-  { name: "Programa Horizon", client: "Lumina Retail", progress: 46, margin: "34%", team: "6 pessoas", status: "Saudável", tone: "good" },
-  { name: "Transformação Core", client: "Arco Logística", progress: 29, margin: "27%", team: "4 pessoas", status: "Monitorar", tone: "neutral" },
+const defaultProjects: Project[] = [
+  { id: "atlas", name: "Projeto Atlas", client: "Northstar Health", progress: 64, margin: 24, team: 8 },
+  { id: "prisma", name: "Operação Prisma", client: "Vértice Capital", progress: 82, margin: 38, team: 5 },
+  { id: "horizon", name: "Programa Horizon", client: "Lumina Retail", progress: 46, margin: 34, team: 6 },
+  { id: "core", name: "Transformação Core", client: "Arco Logística", progress: 29, margin: 27, team: 4 },
 ];
+const defaults: DashboardData = {
+  company: "Lumina Consultoria", owner: "Luan Moroni", period: "Julho 2026", revenue: 284000, previousRevenue: 252600,
+  target: 310000, margin: 31.8, pipeline: 620000, utilization: 78, proposals: 18, negotiations: 9, closings: 4,
+  marginTarget: 30, utilizationTarget: 82, currency: "BRL", projects: defaultProjects, actions: [],
+};
 
-const months = [62, 68, 65, 78, 84, 92];
-const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
-const compactMoney = (value: number) => value >= 1_000_000 ? `R$ ${(value / 1_000_000).toFixed(2).replace(".", ",")} mi` : `R$ ${Math.round(value / 1000)} mil`;
+const normalise = (value: Partial<DashboardData> | null): DashboardData => ({
+  ...defaults, ...(value || {}), projects: value?.projects?.length ? value.projects : defaultProjects, actions: value?.actions || [],
+});
+const money = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value || 0);
+const compactMoney = (value: number) => value >= 1_000_000 ? `R$ ${(value / 1_000_000).toFixed(2).replace(".", ",")} mi` : `R$ ${Math.round((value || 0) / 1000)} mil`;
+const pct = (value: number) => `${Number.isFinite(value) ? value.toFixed(1).replace(".", ",") : "0,0"}%`;
+const clamp = (value: number, min = 0, max = 100) => Math.min(Math.max(value || 0, min), max);
+
+function projectHealth(project: Project, marginTarget: number) {
+  if (project.margin < marginTarget * .85 || (project.progress < 40 && project.team < 5)) return { label: "Atenção", tone: "warn" };
+  if (project.margin < marginTarget || project.progress < 50) return { label: "Monitorar", tone: "neutral" };
+  return { label: "Saudável", tone: "good" };
+}
+function recommendationFor(data: DashboardData) {
+  const risky = data.projects.filter(p => projectHealth(p, data.marginTarget).tone === "warn").sort((a,b) => a.margin - b.margin)[0];
+  const conversion = data.proposals ? data.closings / data.proposals * 100 : 0;
+  if (data.negotiations > data.proposals || data.closings > data.negotiations) return { title: "Corrigir os dados do funil comercial.", detail: "Há etapas com volume superior à etapa anterior. Revise a entrada de dados antes de decidir.", impact: "Dados confiáveis" };
+  if (risky) return { title: `Revisar capacidade e margem de ${risky.name}.`, detail: `${risky.client}: margem de ${pct(risky.margin)} e ${pct(risky.progress)} de progresso. Defina responsável e ação corretiva.`, impact: `${money(Math.max((data.marginTarget-risky.margin)/100*data.revenue,0))} em risco` };
+  if (data.revenue < data.target && conversion < 25) return { title: "Acelerar negociações com maior probabilidade.", detail: `Faltam ${compactMoney(data.target-data.revenue)} para a meta e a conversão está em ${pct(conversion)}. Priorize propostas qualificadas.`, impact: `${compactMoney(data.target-data.revenue)} para a meta` };
+  if (data.utilization < data.utilizationTarget) return { title: "Redistribuir a capacidade disponível.", detail: `A utilização está em ${pct(data.utilization)}, abaixo da meta de ${pct(data.utilizationTarget)}. Antecipe entregas ou apoie o comercial.`, impact: `${pct(data.utilizationTarget-data.utilization)} de capacidade` };
+  return { title: "Proteger o ritmo atual e preparar o próximo ciclo.", detail: "Os principais indicadores estão dentro das metas. Revise pipeline e capacidade para sustentar o desempenho.", impact: "Metas protegidas" };
+}
 
 export function Dashboard() {
   const [view, setView] = useState<View>("overview");
@@ -32,70 +52,42 @@ export function Dashboard() {
   const [draft, setDraft] = useState<DashboardData>(defaults);
   const [notice, setNotice] = useState("Carregando dados…");
   const [saving, setSaving] = useState(false);
+  useEffect(() => { fetch("/api/dashboard").then(r => r.ok ? r.json() : Promise.reject()).then(result => {
+    const next = normalise(result.data); setData(next); setDraft(next); setNotice(result.data ? "Dados sincronizados" : "Use Entrada de dados para começar");
+  }).catch(() => setNotice("Não foi possível sincronizar os dados")); }, []);
 
-  useEffect(() => {
-    fetch("/api/dashboard").then(r => r.ok ? r.json() : Promise.reject()).then(result => {
-      if (result.data) { setData(result.data); setDraft(result.data); setNotice("Dados sincronizados"); }
-      else setNotice("Dados demonstrativos · personalize em Configurações");
-    }).catch(() => setNotice("Modo demonstrativo · personalize em Configurações"));
-  }, []);
+  const growth = data.previousRevenue > 0 ? (data.revenue-data.previousRevenue)/data.previousRevenue*100 : 0;
+  const goal = data.target > 0 ? data.revenue/data.target*100 : 0;
+  const conversion = data.proposals > 0 ? data.closings/data.proposals*100 : 0;
+  const recommendation = useMemo(() => recommendationFor(data), [data]);
+  const funnelValid = draft.proposals >= draft.negotiations && draft.negotiations >= draft.closings;
 
-  const growth = useMemo(() => ((data.revenue - data.previousRevenue) / data.previousRevenue) * 100, [data]);
-  const goal = Math.min((data.revenue / data.target) * 100, 100);
-  const conversion = data.proposals ? (data.closings / data.proposals) * 100 : 0;
-
-  async function save(event: FormEvent) {
-    event.preventDefault(); setSaving(true); setNotice("Salvando alterações…");
-    try {
-      const response = await fetch("/api/dashboard", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
-      if (!response.ok) throw new Error();
-      setData(draft); setNotice("Alterações salvas"); setView("overview");
-    } catch { setNotice("Não foi possível salvar agora. Tente novamente."); }
-    finally { setSaving(false); }
+  async function persist(next: DashboardData, success = "Alterações salvas") {
+    setSaving(true); setNotice("Salvando…");
+    try { const response = await fetch("/api/dashboard", { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(next) }); if (!response.ok) throw new Error(); setData(next); setDraft(next); setNotice(success); return true; }
+    catch { setNotice("Não foi possível salvar. Tente novamente."); return false; } finally { setSaving(false); }
   }
+  async function saveData(event: FormEvent) { event.preventDefault(); if (!funnelValid) return; if (await persist(draft)) setView("overview"); }
+  async function applyPlan() {
+    if (data.actions.some(a => !a.done && a.title === recommendation.title)) { setView("projects"); setNotice("Este plano já está em acompanhamento"); return; }
+    const action = { id: crypto.randomUUID(), title: recommendation.title, detail: recommendation.detail, done:false, createdAt:new Date().toISOString() };
+    if (await persist({...data, actions:[action,...data.actions]}, "Plano criado e adicionado ao acompanhamento")) setView("projects");
+  }
+  async function toggleAction(id: string) { await persist({...data, actions:data.actions.map(a => a.id === id ? {...a,done:!a.done} : a)}, "Plano atualizado"); }
+  const nav = (target: View,label:string,index:string) => <button className={view===target?"active":""} onClick={()=>setView(target)}><span>{index}</span>{label}</button>;
+  const title = view === "overview" ? `Olá, ${data.owner.split(" ")[0]}.` : ({commercial:"Comercial",projects:"Projetos e planos",data:"Entrada de dados",reports:"Relatórios",settings:"Configurações"} as const)[view];
 
-  const nav = (target: View, label: string, index: string) => <button className={view === target ? "active" : ""} onClick={() => setView(target)}><span>{index}</span>{label}</button>;
-
-  return <main className="app-shell">
-    <aside className="sidebar">
-      <button className="logo" onClick={() => setView("overview")}><span>D</span> Decision Hub</button>
-      <nav aria-label="Navegação principal"><p>Workspace</p>{nav("commercial","Comercial","01")}{nav("overview","Visão geral","02")}{nav("projects","Projetos","03")}<p>Gestão</p>{nav("reports","Relatórios","04")}{nav("settings","Configurações","05")}</nav>
-      <div className="sidebar-foot"><div className="avatar">LM</div><div><b>Luan Moroni</b><small>Administrador</small></div></div>
-    </aside>
-
-    <section className="workspace">
-      <header className="topbar"><div><p>DECISION HUB / {view.toUpperCase()}</p><h1>{view === "settings" ? "Configurações" : view === "reports" ? "Relatórios" : view === "projects" ? "Projetos" : view === "commercial" ? "Comercial" : "Bom dia, Luan."}</h1></div><div className="top-actions"><span className="sync-status">● {notice}</span><button className="period">{data.period}</button>{view !== "settings" && <button className="export" onClick={() => setView("reports")}>Gerar relatório ↗</button>}</div></header>
-
-      {view === "settings" ? <Settings draft={draft} setDraft={setDraft} save={save} saving={saving} reset={() => setDraft(defaults)} /> :
-       view === "reports" ? <Reports data={data} growth={growth} goal={goal} conversion={conversion} /> :
-       view === "projects" ? <Projects /> :
-       view === "commercial" ? <Commercial data={data} conversion={conversion} /> :
-       <Overview data={data} growth={growth} goal={goal} conversion={conversion} />}
-      <footer><span>Decision Hub · {data.company}</span><span>{notice}</span></footer>
-    </section>
-  </main>;
+  return <main className="app-shell"><aside className="sidebar"><button className="logo" onClick={()=>setView("overview")}><span>D</span> Decision Hub</button><nav aria-label="Navegação principal"><p>Análise</p>{nav("commercial","Comercial","01")}{nav("overview","Visão geral","02")}{nav("projects","Projetos e planos","03")}<p>Gestão</p>{nav("data","Entrada de dados","04")}{nav("reports","Relatórios","05")}{nav("settings","Configurações","06")}</nav><div className="sidebar-foot"><div className="avatar">{data.owner.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><b>{data.owner}</b><small>Administrador</small></div></div></aside>
+  <section className="workspace"><header className="topbar"><div><p>DECISION HUB / {view.toUpperCase()}</p><h1>{title}</h1></div><div className="top-actions"><span className="sync-status">● {notice}</span><button className="period">{data.period}</button>{!(["data","settings","reports"] as View[]).includes(view)&&<button className="export" onClick={()=>setView("data")}>Atualizar dados</button>}</div></header>
+  {view==="data"?<DataEntry draft={draft} setDraft={setDraft} save={saveData} saving={saving} valid={funnelValid} cancel={()=>{setDraft(data);setView("overview")}}/>:view==="settings"?<Settings data={data} save={persist} saving={saving}/>:view==="reports"?<Reports data={data} growth={growth} goal={goal} conversion={conversion} recommendation={recommendation}/>:view==="projects"?<Projects data={data} toggleAction={toggleAction}/>:view==="commercial"?<Commercial data={data} conversion={conversion}/>:<Overview data={data} growth={growth} goal={goal} conversion={conversion} recommendation={recommendation} applyPlan={applyPlan} saving={saving}/>}<footer><span>Decision Hub · {data.company}</span><span>{notice}</span></footer></section></main>;
 }
 
-function Commercial({ data, conversion }: { data: DashboardData; conversion: number }) {
-  return <div className="view-stack"><section className="commercial-hero"><div><p>PIPELINE TOTAL</p><strong>{compactMoney(data.pipeline)}</strong><span>oportunidades qualificadas</span></div><div><p>CONVERSÃO GERAL</p><strong>{conversion.toFixed(1).replace(".",",")}%</strong><span>fechamento sobre propostas</span></div><div><p>RECEITA POTENCIAL</p><strong>{compactMoney(data.pipeline * .63)}</strong><span>pipeline ponderado</span></div></section><Funnel data={data} /><section className="panel opportunity-list"><header><div><p>OPORTUNIDADES PRIORITÁRIAS</p><h2>Próximos fechamentos</h2></div></header>{[["Expansão Atlas","R$ 180 mil","80%"],["Estratégia Orion","R$ 140 mil","65%"],["Diagnóstico Vega","R$ 96 mil","55%"]].map(x=><article key={x[0]}><div><b>{x[0]}</b><small>Proposta em negociação</small></div><strong>{x[1]}</strong><em>{x[2]} prob.</em><button>Ver detalhes →</button></article>)}</section></div>;
-}
-
-function Overview({ data, growth, goal, conversion }: { data: DashboardData; growth: number; goal: number; conversion: number }) {
-  const metrics = [["Margem operacional",`${data.margin.toFixed(1).replace(".",",")}%`,`Meta 30%`],["Pipeline ponderado",compactMoney(data.pipeline),"Próximos 90 dias"],["Utilização da equipe",`${data.utilization}%`,`Meta 82%`],["Projetos ativos",String(data.activeProjects),"3 em atenção"]];
-  return <>
-    <section className="commercial-strip"><div><p>COMERCIAL PRIMEIRO</p><h2>{data.proposals} propostas · {data.negotiations} negociações · {data.closings} fechamentos</h2></div><div><strong>{conversion.toFixed(1).replace(".",",")}%</strong><span>conversão</span></div><div><strong>{compactMoney(data.pipeline)}</strong><span>pipeline</span></div></section>
-    <section className="hero-metric"><div className="revenue"><p>Receita reconhecida no mês</p><div><strong>{compactMoney(data.revenue)}</strong><span>↗ {growth.toFixed(1).replace(".",",")}%</span></div><small>{money(data.revenue-data.previousRevenue)} acima do mês anterior</small></div><div className="goal"><div><p>Meta mensal</p><b>{compactMoney(data.target)}</b></div><div className="goal-track"><span style={{width:`${goal}%`}}/></div><small>{goal.toFixed(1).replace(".",",")}% alcançado · faltam {compactMoney(Math.max(data.target-data.revenue,0))}</small></div></section>
-    <section className="metric-row">{metrics.map(m=><article key={m[0]}><p>{m[0]}</p><strong>{m[1]}</strong><small>{m[2]}</small></article>)}</section>
-    <section className="recommendation"><div className="rec-index">01</div><div><p>RECOMENDAÇÃO PRIORITÁRIA</p><h2>Realocar 2 consultores para o Projeto Atlas.</h2><span>A entrega crítica acontece em 12 dias e a capacidade cobre apenas 74% do esforço previsto.</span></div><div className="rec-impact"><p>IMPACTO ESTIMADO</p><strong>+R$ 18 mil</strong><span>em margem protegida</span></div><button>Aplicar plano <span>→</span></button></section>
-    <div className="dashboard-grid"><RevenueChart /><Funnel data={data}/></div><Projects compact />
-  </>;
-}
-
-function Funnel({ data }: { data: DashboardData }) { return <section className="panel funnel"><header><div><p>PIPELINE COMERCIAL</p><h2>Conversão do funil</h2></div></header><div className="funnel-total"><strong>{compactMoney(data.pipeline)}</strong><span>pipeline ponderado</span></div>{[["Propostas",data.proposals,"100%"],["Negociação",data.negotiations,"64%"],["Fechamento",data.closings,"36%"]].map(x=><div className="funnel-row" key={String(x[0])}><span>{x[0]}</span><b>{x[1]}</b><i style={{width:String(x[2])}}/><small>{Math.round(Number(x[1])/data.proposals*100)}%</small></div>)}</section> }
-function RevenueChart(){return <section className="panel revenue-chart"><header><div><p>DESEMPENHO FINANCEIRO</p><h2>Receita × meta</h2></div></header><div className="chart-area"><div className="axis"><span>R$ 300k</span><span>R$ 200k</span><span>R$ 100k</span><span>R$ 0</span></div><div className="bars">{months.map((h,i)=><div className="month" key={i}><div className="bar-pair"><i style={{height:`${h-5}%`}}/><b style={{height:`${h}%`}}/></div><span>{["Fev","Mar","Abr","Mai","Jun","Jul"][i]}</span></div>)}</div></div></section>}
-
-function Projects({compact=false}:{compact?:boolean}) { return <section className="panel project-panel"><header><div><p>PORTFÓLIO DE ENTREGAS</p><h2>{compact ? "Projetos no fim da visão geral" : "Todos os projetos"}</h2></div></header><div className="project-head"><span>Projeto / Cliente</span><span>Progresso</span><span>Margem</span><span>Equipe</span><span>Status</span></div>{projects.map(p=><article className="project-row" key={p.name}><div><b>{p.name}</b><small>{p.client}</small></div><div className="progress"><span><i style={{width:`${p.progress}%`}}/></span><b>{p.progress}%</b></div><strong>{p.margin}</strong><span>{p.team}</span><em className={p.tone}>{p.status}</em></article>)}</section> }
-
-function Reports({data,growth,goal,conversion}:{data:DashboardData;growth:number;goal:number;conversion:number}) {return <div className="view-stack report-view"><section className="report-cover"><p>RELATÓRIO EXECUTIVO</p><h2>{data.company}</h2><span>{data.period} · gerado pelo Decision Hub</span><button onClick={()=>window.print()}>Imprimir / salvar PDF</button></section><section className="report-summary">{[["Receita",compactMoney(data.revenue)],["Crescimento",`${growth.toFixed(1)}%`],["Meta atingida",`${goal.toFixed(1)}%`],["Conversão",`${conversion.toFixed(1)}%`]].map(x=><article key={x[0]}><p>{x[0]}</p><strong>{x[1]}</strong></article>)}</section><section className="panel report-text"><h2>Leitura executiva</h2><p>A receita do período alcançou {compactMoney(data.revenue)}, equivalente a {goal.toFixed(1)}% da meta. O pipeline ponderado é de {compactMoney(data.pipeline)}, com conversão geral de {conversion.toFixed(1)}%.</p><h3>Recomendação</h3><p>Priorizar a alocação de capacidade no Projeto Atlas e acompanhar semanalmente margem e utilização até a entrega crítica.</p></section></div>}
-
-function Settings({draft,setDraft,save,saving,reset}:{draft:DashboardData;setDraft:(d:DashboardData)=>void;save:(e:FormEvent)=>void;saving:boolean;reset:()=>void}) { const field=(key:keyof DashboardData,label:string,type="number")=><label><span>{label}</span><input type={type} value={draft[key]} onChange={e=>setDraft({...draft,[key]:type==="number"?Number(e.target.value):e.target.value})}/></label>; return <form className="settings-view" onSubmit={save}><section className="settings-intro"><div><p>INDICADORES DO NEGÓCIO</p><h2>Edite os dados exibidos no dashboard.</h2><span>As alterações são salvas no banco do projeto e atualizam todas as telas.</span></div><button type="button" onClick={reset}>Restaurar demonstração</button></section><section className="settings-grid"><fieldset><legend>Identificação</legend>{field("company","Empresa","text")}{field("period","Período","text")}</fieldset><fieldset><legend>Financeiro</legend>{field("revenue","Receita do mês (R$)")}{field("previousRevenue","Receita anterior (R$)")}{field("target","Meta mensal (R$)")}{field("margin","Margem operacional (%)")}</fieldset><fieldset><legend>Operação</legend>{field("pipeline","Pipeline ponderado (R$)")}{field("utilization","Utilização da equipe (%)")}{field("activeProjects","Projetos ativos")}</fieldset><fieldset><legend>Comercial</legend>{field("proposals","Propostas")}{field("negotiations","Negociações")}{field("closings","Fechamentos")}</fieldset></section><div className="settings-actions"><button type="button" onClick={()=>setDraft(defaults)}>Cancelar alterações</button><button className="save" disabled={saving}>{saving?"Salvando…":"Salvar e atualizar dashboard"}</button></div></form> }
+function Commercial({data,conversion}:{data:DashboardData;conversion:number}) { const negRate=data.proposals?data.negotiations/data.proposals*100:0; return <div className="view-stack"><section className="commercial-hero"><div><p>PIPELINE TOTAL</p><strong>{compactMoney(data.pipeline)}</strong><span>oportunidades qualificadas</span></div><div><p>CONVERSÃO GERAL</p><strong>{pct(conversion)}</strong><span>fechamentos sobre propostas</span></div><div><p>EM NEGOCIAÇÃO</p><strong>{pct(negRate)}</strong><span>{data.negotiations} de {data.proposals} propostas</span></div></section><Funnel data={data}/><section className="panel empty-state"><p>PRÓXIMA EVOLUÇÃO</p><h2>Oportunidades individualizadas</h2><span>O funil já usa dados reais. O cadastro de oportunidades por cliente entra no próximo módulo, sem inventar nomes ou valores.</span></section></div> }
+function Overview({data,growth,goal,conversion,recommendation,applyPlan,saving}:{data:DashboardData;growth:number;goal:number;conversion:number;recommendation:ReturnType<typeof recommendationFor>;applyPlan:()=>void;saving:boolean}) { const attention=data.projects.filter(p=>projectHealth(p,data.marginTarget).tone==="warn").length; return <><section className="commercial-strip"><div><p>COMERCIAL</p><h2>{data.proposals} propostas <span>→</span> {data.negotiations} negociações <span>→</span> {data.closings} fechamentos</h2></div><div><strong>{pct(conversion)}</strong><span>conversão</span></div><div><strong>{compactMoney(data.pipeline)}</strong><span>pipeline</span></div></section><section className="hero-metric"><div className="revenue"><p>Receita reconhecida no mês</p><div><strong>{compactMoney(data.revenue)}</strong><span className={growth>=0?"positive":"negative"}>{growth>=0?"↗":"↘"} {pct(Math.abs(growth))}</span></div><small>{money(Math.abs(data.revenue-data.previousRevenue))} {growth>=0?"acima":"abaixo"} do mês anterior</small></div><div className="goal"><div><p>Meta mensal</p><b>{compactMoney(data.target)}</b></div><div className="goal-track"><span style={{width:`${clamp(goal)}%`}}/></div><small>{pct(goal)} alcançado · {goal>=100?"meta atingida":`faltam ${compactMoney(data.target-data.revenue)}`}</small></div></section><section className="metric-row">{[["Margem operacional",pct(data.margin),`Meta ${pct(data.marginTarget)}`],["Pipeline ponderado",compactMoney(data.pipeline),"Próximos 90 dias"],["Utilização da equipe",pct(data.utilization),`Meta ${pct(data.utilizationTarget)}`],["Projetos ativos",String(data.projects.length),`${attention} em atenção`]].map(m=><article key={m[0]}><p>{m[0]}</p><strong>{m[1]}</strong><small>{m[2]}</small></article>)}</section><section className="recommendation"><div className="rec-index">01</div><div><p>RECOMENDAÇÃO CALCULADA</p><h2>{recommendation.title}</h2><span>{recommendation.detail}</span></div><div className="rec-impact"><p>FOCO</p><strong>{recommendation.impact}</strong></div><button onClick={applyPlan} disabled={saving}>{saving?"Salvando…":"Criar plano"}<span>→</span></button></section><div className="dashboard-grid"><RevenueChart data={data}/><Funnel data={data}/></div><ProjectTable data={data} compact/></> }
+function Funnel({data}:{data:DashboardData}) { const steps:[[string,number],[string,number],[string,number]]=[["Propostas",data.proposals],["Negociação",data.negotiations],["Fechamento",data.closings]]; return <section className="panel funnel"><header><div><p>PIPELINE COMERCIAL</p><h2>Conversão do funil</h2></div></header><div className="funnel-total"><strong>{compactMoney(data.pipeline)}</strong><span>pipeline ponderado</span></div>{steps.map(([label,value])=>{const rate=data.proposals?value/data.proposals*100:0;return <div className="funnel-row" key={label}><span>{label}</span><b>{value}</b><i style={{width:`${clamp(rate)}%`}}/><small>{pct(rate)}</small></div>})}</section> }
+function RevenueChart({data}:{data:DashboardData}) { const scale=Math.max(data.target,data.revenue,1); const actual=[.62,.68,.65,.78,.84,1].map(x=>data.revenue*x); return <section className="panel revenue-chart"><header><div><p>DESEMPENHO FINANCEIRO</p><h2>Receita × meta</h2></div></header><div className="chart-area"><div className="axis"><span>{compactMoney(scale)}</span><span>{compactMoney(scale*.66)}</span><span>{compactMoney(scale*.33)}</span><span>R$ 0</span></div><div className="bars">{actual.map((value,i)=><div className="month" key={i}><div className="bar-pair"><i style={{height:`${clamp(data.target/scale*88)}%`}}/><b style={{height:`${clamp(value/scale*88)}%`}}/></div><span>{["Fev","Mar","Abr","Mai","Jun","Jul"][i]}</span></div>)}</div></div></section> }
+function ProjectTable({data,compact=false}:{data:DashboardData;compact?:boolean}) { return <section className="panel project-panel"><header><div><p>PORTFÓLIO DE ENTREGAS</p><h2>{compact?"Projetos que exigem leitura":"Todos os projetos"}</h2></div></header><div className="project-head"><span>Projeto / Cliente</span><span>Progresso</span><span>Margem</span><span>Equipe</span><span>Status calculado</span></div>{data.projects.map(p=>{const health=projectHealth(p,data.marginTarget);return <article className="project-row" key={p.id}><div><b>{p.name}</b><small>{p.client}</small></div><div className="progress"><span><i style={{width:`${clamp(p.progress)}%`}}/></span><b>{pct(p.progress)}</b></div><strong>{pct(p.margin)}</strong><span>{p.team} pessoas</span><em className={health.tone}>{health.label}</em></article>})}</section> }
+function Projects({data,toggleAction}:{data:DashboardData;toggleAction:(id:string)=>void}) { return <div className="view-stack"><section className="panel action-panel"><header><div><p>PLANO DE AÇÃO</p><h2>Acompanhamento das decisões</h2></div><span>{data.actions.filter(a=>!a.done).length} abertas</span></header>{data.actions.length===0?<div className="empty-state"><b>Nenhum plano criado.</b><span>Use “Criar plano” na recomendação da Visão geral.</span></div>:data.actions.map(a=><article className={a.done?"done":""} key={a.id}><button onClick={()=>toggleAction(a.id)} aria-label={a.done?"Reabrir plano":"Concluir plano"}>{a.done?"✓":""}</button><div><b>{a.title}</b><small>{a.detail}</small></div><time>{new Date(a.createdAt).toLocaleDateString("pt-BR")}</time></article>)}</section><ProjectTable data={data}/></div> }
+function Reports({data,growth,goal,conversion,recommendation}:{data:DashboardData;growth:number;goal:number;conversion:number;recommendation:ReturnType<typeof recommendationFor>}) { const [scope,setScope]=useState("executive"); const downloadCsv=()=>{const rows=[["Indicador","Valor"],["Receita",data.revenue],["Meta",data.target],["Margem",data.margin],["Pipeline",data.pipeline],["Utilização",data.utilization],["Propostas",data.proposals],["Negociações",data.negotiations],["Fechamentos",data.closings]];const blob=new Blob([rows.map(r=>r.join(";")).join("\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`decision-hub-${data.period.toLowerCase().replaceAll(" ","-")}.csv`;a.click();URL.revokeObjectURL(url)}; return <div className="view-stack report-view"><section className="report-toolbar"><label>Tipo de relatório<select value={scope} onChange={e=>setScope(e.target.value)}><option value="executive">Executivo</option><option value="commercial">Comercial</option><option value="projects">Projetos</option></select></label><button onClick={downloadCsv}>Exportar CSV</button><button className="primary" onClick={()=>window.print()}>Imprimir / salvar PDF</button></section><section className="report-cover"><p>RELATÓRIO {scope==="executive"?"EXECUTIVO":scope==="commercial"?"COMERCIAL":"DE PROJETOS"}</p><h2>{data.company}</h2><span>{data.period} · dados consolidados do Decision Hub</span></section><section className="report-summary">{[["Receita",compactMoney(data.revenue)],["Crescimento",pct(growth)],["Meta atingida",pct(goal)],["Conversão",pct(conversion)]].map(x=><article key={x[0]}><p>{x[0]}</p><strong>{x[1]}</strong></article>)}</section>{scope!=="projects"&&<section className="panel report-text"><article><h2>Leitura executiva</h2><p>A receita alcançou {compactMoney(data.revenue)}, equivalente a {pct(goal)} da meta. O pipeline é de {compactMoney(data.pipeline)}, com conversão de {pct(conversion)}.</p></article><article><h3>Recomendação calculada</h3><p><b>{recommendation.title}</b> {recommendation.detail}</p></article></section>}{scope!=="commercial"&&<ProjectTable data={data}/>}</div> }
+function DataEntry({draft,setDraft,save,saving,valid,cancel}:{draft:DashboardData;setDraft:(d:DashboardData)=>void;save:(e:FormEvent)=>void;saving:boolean;valid:boolean;cancel:()=>void}) { const field=(key:keyof DashboardData,label:string,type="number")=><label><span>{label}</span><input type={type} min={type==="number"?0:undefined} value={String(draft[key])} onChange={e=>setDraft({...draft,[key]:type==="number"?Number(e.target.value):e.target.value})}/></label>; const projectField=(id:string,key:keyof Project,value:string|number,type="text")=><input aria-label={`${key} do projeto`} type={type} min={type==="number"?0:undefined} max={key==="progress"?100:undefined} value={value} onChange={e=>setDraft({...draft,projects:draft.projects.map(p=>p.id===id?{...p,[key]:type==="number"?Number(e.target.value):e.target.value}:p)})}/>; return <form className="settings-view" onSubmit={save}><section className="settings-intro"><div><p>FONTE ÚNICA DOS INDICADORES</p><h2>Atualize o período operacional.</h2><span>Os dados alimentam análises, recomendações, projetos e relatórios. O funil é validado antes de salvar.</span></div></section><section className="settings-grid"><fieldset><legend>Período e financeiro</legend>{field("period","Período","text")}{field("revenue","Receita do mês (R$)")}{field("previousRevenue","Receita anterior (R$)")}{field("target","Meta mensal (R$)")}{field("margin","Margem operacional (%)")}</fieldset><fieldset className={!valid?"invalid":""}><legend>Comercial e capacidade</legend>{field("pipeline","Pipeline ponderado (R$)")}{field("utilization","Utilização da equipe (%)")}{field("proposals","Propostas")}{field("negotiations","Negociações")}{field("closings","Fechamentos")}{!valid&&<p className="field-error">Use a ordem correta: propostas ≥ negociações ≥ fechamentos.</p>}</fieldset></section><section className="panel project-editor"><header><div><p>PROJETOS</p><h2>Dados que determinam o status</h2></div></header><div className="project-edit-head"><span>Projeto</span><span>Cliente</span><span>Progresso %</span><span>Margem %</span><span>Equipe</span></div>{draft.projects.map(p=><div className="project-edit-row" key={p.id}>{projectField(p.id,"name",p.name)}{projectField(p.id,"client",p.client)}{projectField(p.id,"progress",p.progress,"number")}{projectField(p.id,"margin",p.margin,"number")}{projectField(p.id,"team",p.team,"number")}</div>)}</section><div className="settings-actions"><button type="button" onClick={cancel}>Cancelar</button><button className="save" disabled={saving||!valid}>{saving?"Salvando…":"Salvar dados do período"}</button></div></form> }
+function Settings({data,save,saving}:{data:DashboardData;save:(d:DashboardData,s?:string)=>Promise<boolean>;saving:boolean}) { const [draft,setDraft]=useState(data); const submit=async(e:FormEvent)=>{e.preventDefault();await save(draft,"Configurações atualizadas")}; return <form className="settings-view" onSubmit={submit}><section className="settings-intro"><div><p>PREFERÊNCIAS DO WORKSPACE</p><h2>Configure a identidade e as regras.</h2><span>Estas opções definem quem usa o painel e quais metas determinam alertas e recomendações.</span></div></section><section className="settings-grid"><fieldset><legend>Workspace</legend><label><span>Nome da empresa</span><input value={draft.company} onChange={e=>setDraft({...draft,company:e.target.value})}/></label><label><span>Responsável</span><input value={draft.owner} onChange={e=>setDraft({...draft,owner:e.target.value})}/></label></fieldset><fieldset><legend>Regras de gestão</legend><label><span>Meta de margem (%)</span><input type="number" min="0" max="100" value={draft.marginTarget} onChange={e=>setDraft({...draft,marginTarget:Number(e.target.value)})}/></label><label><span>Meta de utilização (%)</span><input type="number" min="0" max="100" value={draft.utilizationTarget} onChange={e=>setDraft({...draft,utilizationTarget:Number(e.target.value)})}/></label></fieldset></section><div className="settings-actions"><button type="button" onClick={()=>setDraft(data)}>Descartar</button><button className="save" disabled={saving}>{saving?"Salvando…":"Salvar configurações"}</button></div></form> }

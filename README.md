@@ -20,10 +20,13 @@ O Decision Hub organiza esses sinais em uma única leitura executiva e destaca a
 
 ## Como usar
 
-1. Abra **Configurações** no menu lateral.
-2. Preencha empresa, período, receita, meta, margem, pipeline, utilização e etapas do funil.
-3. Selecione **Salvar alterações**. Os valores ficam persistidos no banco de dados e alimentam todas as telas.
-4. Acesse **Relatórios** para conferir o resumo executivo e imprimir ou salvar em PDF.
+1. Abra **Entrada de dados** no menu lateral.
+2. Preencha período, receita, meta, margem, pipeline, utilização, funil e os dados de cada projeto.
+3. Selecione **Salvar dados do período**. O sistema valida o funil e alimenta todas as análises.
+4. Use **Configurações** para definir empresa, responsável e metas que determinam alertas e recomendações.
+5. Acesse **Relatórios** para escolher o recorte executivo, comercial ou de projetos, exportar CSV e salvar em PDF.
+
+As recomendações são calculadas a partir dos indicadores e podem ser transformadas em planos de ação acompanháveis. O status dos projetos também é recalculado com base em margem, progresso, equipe e metas configuradas.
 
 O menu **Comercial** concentra funil, oportunidades e metas. **Projetos** aparece ao final da jornada, depois da leitura comercial e financeira.
 
