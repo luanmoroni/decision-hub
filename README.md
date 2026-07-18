@@ -18,22 +18,25 @@ O Decision Hub organiza esses sinais em uma única leitura executiva e destaca a
 - conversão do funil de vendas;
 - recomendação operacional priorizada.
 
-## Decisão demonstrada
+## Como usar
 
-> Realocar dois consultores para o Projeto Atlas para proteger a entrega crítica e aproximadamente R$ 18 mil em margem.
+1. Abra **Configurações** no menu lateral.
+2. Preencha empresa, período, receita, meta, margem, pipeline, utilização e etapas do funil.
+3. Selecione **Salvar alterações**. Os valores ficam persistidos no banco de dados e alimentam todas as telas.
+4. Acesse **Relatórios** para conferir o resumo executivo e imprimir ou salvar em PDF.
 
-Os dados são demonstrativos, mas foram estruturados para representar um cenário plausível de gestão de consultoria.
+O menu **Comercial** concentra funil, oportunidades e metas. **Projetos** aparece ao final da jornada, depois da leitura comercial e financeira.
 
 ## Stack
 
 - Next.js e React
 - TypeScript
 - CSS responsivo
-- Vinext e Cloudflare Workers
+- Vinext, Cloudflare Workers e D1
 
 ## Status
 
-Primeira versão concluída. Os próximos ciclos adicionarão filtros funcionais, persistência de dados, testes e importação de fontes externas.
+Versão funcional com navegação, edição de indicadores, persistência de dados e relatório executivo para impressão. Próximos ciclos podem adicionar autenticação, importação de planilhas e integrações externas.
 
 ## Autor
 
