@@ -15,3 +15,4 @@
 @media(max-width:900px){.commercial-hero{grid-template-columns:1fr}.project-edit-head{display:none}.project-edit-row{grid-template-columns:1fr 1fr}.project-edit-row input:nth-child(n+3){min-width:100px}.project-edit-row input:first-child{grid-column:1/-1}.recommendation{grid-template-columns:1fr}.rec-impact{display:block;border:0;padding:0}}
 @media(max-width:720px){.report-toolbar{flex-wrap:wrap}.report-toolbar label{width:100%}.report-toolbar select{width:100%}.project-edit-row{grid-template-columns:1fr}.project-edit-row input:first-child{grid-column:auto}.commercial-strip h2{font-size:1rem}.commercial-strip h2 span{display:none}}
 @media print{.report-toolbar{display:none!important}.report-view>*{display:block!important}.report-view .project-panel{display:block!important}}
+.commercial-strip.data-warning{background:#743a2d}.invalid-funnel{border-color:#c65a42}.invalid-funnel .funnel-row small{color:#a3422d;font-weight:700}
