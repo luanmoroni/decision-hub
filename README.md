@@ -1,51 +1,44 @@
 # Decision Hub
 
-Dashboard executivo para empresas de serviços e consultoria. O produto reúne indicadores comerciais, financeiros e operacionais para transformar dados dispersos em decisões priorizadas.
+Painel de gestão para empresas de serviços e consultoria. Reúne comercial, finanças, projetos e planos de ação em uma leitura executiva por período.
 
-## Problema
+## O que já funciona
 
-Consultorias costumam acompanhar vendas, projetos, margem e capacidade da equipe em ferramentas separadas. Isso reduz a visibilidade sobre riscos e faz com que decisões importantes aconteçam tarde demais.
+- visão geral com receita, meta, margem, pipeline, utilização e funil;
+- cadastro e consulta de vários períodos;
+- projetos com status escolhido pelo gestor: **Saudável**, **Monitorar** ou **Atenção**;
+- criação, edição, aprovação, conclusão e exclusão de planos de ação;
+- relatórios executivo, comercial e de projetos, com CSV e impressão em PDF;
+- persistência por período no Supabase Postgres;
+- acesso de demonstração como administrador ou usuário;
+- login real com Supabase Auth e papéis `admin`, `editor` e `viewer` por empresa.
 
-O Decision Hub organiza esses sinais em uma única leitura executiva e destaca a próxima ação com maior impacto.
+O produto não gera recomendações automáticas sem uma regra de negócio aprovada. A nota do relatório, os planos e o status dos projetos são decisões explícitas do gestor.
 
-## O que o dashboard apresenta
+## Demonstração
 
-- receita reconhecida e meta mensal;
-- margem operacional;
-- pipeline comercial ponderado;
-- utilização da equipe;
-- saúde e progresso dos projetos;
-- conversão do funil de vendas;
-- recomendação operacional priorizada.
+Na tela inicial, escolha:
 
-## Como usar
+- **Administrador demo** para editar indicadores, períodos, projetos, planos e configurações;
+- **Usuário demo** para editar a operação e executar planos, sem acesso às configurações administrativas.
 
-1. Abra **Entrada de dados** no menu lateral.
-2. Preencha período, receita, meta, margem, pipeline, utilização, funil e os dados de cada projeto.
-3. Selecione **Salvar dados do período**. O sistema valida o funil e alimenta todas as análises.
-4. Use **Configurações** para definir empresa, responsável e metas que determinam alertas e recomendações.
-5. Acesse **Relatórios** para escolher o recorte executivo, comercial ou de projetos, exportar CSV e salvar em PDF.
+O ambiente de demonstração é isolado. Em uma implantação real, cada usuário entra por e-mail e senha e só acessa as empresas às quais pertence.
 
-As recomendações são calculadas a partir dos indicadores e podem ser transformadas em planos de ação acompanháveis. O status dos projetos também é recalculado com base em margem, progresso, equipe e metas configuradas.
+## Configuração local
 
-Cada período salvo entra no seletor do cabeçalho. Projetos podem ser adicionados ou removidos na entrada de dados.
+1. Copie `.env.example` para `.env`.
+2. Informe `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+3. Execute `npm install` e `npm run dev`.
 
-## Persistência
+## Segurança e dados
 
-Os dados são armazenados no Cloudflare D1. Para uma instalação independente com login público e papéis de Administrador, Usuário e Leitor, a evolução recomendada é Supabase Auth + Postgres com políticas de acesso por empresa.
-
-O menu **Comercial** concentra funil, oportunidades e metas. **Projetos** aparece ao final da jornada, depois da leitura comercial e financeira.
+O banco usa Row Level Security. Dados reais dependem de vínculo na tabela `memberships`; administradores e editores podem gravar, enquanto leitores apenas consultam. A área demo aceita acesso anônimo de propósito para facilitar a avaliação do projeto.
 
 ## Stack
 
-- Next.js e React
-- TypeScript
-- CSS responsivo
-- Vinext, Cloudflare Workers e D1
-
-## Status
-
-Versão funcional com navegação, edição de indicadores, persistência de dados e relatório executivo para impressão. Próximos ciclos podem adicionar autenticação, importação de planilhas e integrações externas.
+- React, TypeScript e CSS responsivo
+- Supabase Auth e Postgres
+- Vinext e Cloudflare Workers
 
 ## Autor
 
